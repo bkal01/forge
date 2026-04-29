@@ -2,6 +2,7 @@ import argparse
 
 from forge.commands.submit import handle_submit
 from forge.commands.worker import handle_worker
+from forge.commands.logs import handle_logs
 
 
 def main() -> None:
@@ -12,6 +13,9 @@ def main() -> None:
     submit_parser.add_argument("filename", help="path to file to submit")
 
     subparsers.add_parser("worker", help="starts forge worker")
+    logs_parser = subparsers.add_parser("logs", help="show logs for a job")
+    logs_parser.add_argument("job_id", help="job uuid")
+    logs_parser.add_argument("-f", "--follow", action="store_true", help="follow log output")
 
     args = parser.parse_args()
 
@@ -19,5 +23,7 @@ def main() -> None:
         handle_submit(args.filename)
     elif args.command == "worker":
         handle_worker()
+    elif args.command == "logs":
+        handle_logs(args.job_id, args.follow)
 if __name__ == "__main__":
     main()

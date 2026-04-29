@@ -83,8 +83,14 @@ def get_jobs_by_status(
 ):
     cur = con.cursor()
 
-    query = "SELECT * FROM jobs WHERE status = ?"
-    params = [int(status)]
+    if isinstance(status, (list, tuple, set)):
+        statuses = [int(s) for s in status]
+    else:
+        statuses = [int(status)]
+
+    placeholders = ", ".join("?" for _ in statuses)
+    query = f"SELECT * FROM jobs WHERE status IN ({placeholders})"
+    params = list(statuses)
 
     if created_at_from_ms is not None:
         query += " AND created_at_ms >= ?"

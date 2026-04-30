@@ -24,8 +24,8 @@ def handle_submit(filename):
     cur = con.cursor()
     cur.execute(
         """
-        INSERT INTO jobs (id, script_path, submit_cwd, status, created_at_ms)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO jobs (id, script_path, submit_cwd, status, created_at_ms, pid)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
         (
             job.id,
@@ -33,6 +33,7 @@ def handle_submit(filename):
             job.submit_cwd,
             int(job.status),
             int(time.time() * 1000),
+            0,
         ),
     )
     con.commit()

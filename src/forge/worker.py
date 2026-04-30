@@ -13,6 +13,7 @@ from forge.db import (
     get_job,
     finish_job,
     start_job,
+    set_job_pid,
     batch_update_job_status,
     get_jobs_by_status,
 )
@@ -87,6 +88,7 @@ class ForgeWorker():
             text=True,
             bufsize=1,
         )
+        set_job_pid(self.con, job.id, proc.pid)
         job_logger.worker("INFO", "job_pid", "Job process started", pid=proc.pid)
 
         def stream_output(pipe, stream_name: str):

@@ -40,6 +40,7 @@ class Job():
         job.created_at_ms = row[6]
         job.started_at_ms = row[7]
         job.finished_at_ms = row[8]
+        job.pid = row[9]
         return job
 
 create_table_query = """
@@ -52,7 +53,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     error_message TEXT,
     created_at_ms INTEGER NOT NULL,
     started_at_ms INTEGER,
-    finished_at_ms INTEGER
+    finished_at_ms INTEGER,
+    pid INTEGER NOT NULL DEFAULT 0
 )"""
 
 next_queued_job_index = """
@@ -127,12 +129,19 @@ def start_job(con, job_id, started_at_ms):
     con.commit()
     return cur.rowcount
 
+
+def set_job_pid(con, job_id, pid):
+    cur = con.cursor()
+    cur.execute("UPDATE jobs SET pid = ? WHERE id = ?", (pid, job_id))
+    con.commit()
+    return cur.rowcount
+
 def finish_job(con, job_id, status, exit_code, finished_at_ms, error_message=None):
     cur = con.cursor()
     cur.execute(
         """
         UPDATE jobs
-        SET status = ?, exit_code = ?, finished_at_ms = ?, error_message = ?
+        SET status = ?, exit_code = ?, finished_at_ms = ?, error_message = ?, pid = 0
         WHERE id = ?
         """,
         (int(status), exit_code, finished_at_ms, error_message, job_id),

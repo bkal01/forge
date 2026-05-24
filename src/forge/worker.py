@@ -2,6 +2,7 @@ import sqlite3 as sql
 import time
 import subprocess as sp
 import os
+import signal
 import threading
 import uuid
 
@@ -14,8 +15,8 @@ from forge.db import (
     finish_job,
     start_job,
     set_job_pid,
-    batch_update_job_status,
     get_jobs_by_status,
+    requeue_running_jobs,
 )
 from forge.logs import ForgeLogger
 
@@ -32,33 +33,39 @@ class ForgeWorker():
         init_db(self.con)
         self.logger.system("INFO", "worker_started", "Forge worker started")
 
-        one_week_ms = 7 * 24 * 60 * 60 * 1000
-        stale_before_ms = int(time.time() * 1000) - one_week_ms
+        # requeue previously running jobs that are hung due to worker restart
+        running_jobs = get_jobs_by_status(self.con, JobStatus.RUNNING)
+        for job in running_jobs:
+            if job.pid:
+                try:
+                    os.killpg(job.pid, signal.SIGTERM)
+                    self.logger.system(
+                        "WARN",
+                        "interrupted_job_process_terminated",
+                        "Terminated process group for interrupted job",
+                        job_id=job.id,
+                        pid=job.pid,
+                    )
+                except ProcessLookupError:
+                    pass
+                except PermissionError as e:
+                    self.logger.system(
+                        "WARN",
+                        "interrupted_job_process_termination_failed",
+                        "Failed to terminate process group for interrupted job",
+                        job_id=job.id,
+                        pid=job.pid,
+                        error=str(e),
+                    )
 
-        stale_jobs = []
-        stale_jobs.extend(
-            get_jobs_by_status(
-                self.con,
-                JobStatus.QUEUED,
-                created_at_to_ms=stale_before_ms,
+        requeued_count = requeue_running_jobs(self.con)
+        if requeued_count:
+            self.logger.system(
+                "WARN",
+                "interrupted_jobs_requeued",
+                "Requeued jobs left RUNNING by previous worker",
+                count=requeued_count,
             )
-        )
-        stale_jobs.extend(
-            get_jobs_by_status(
-                self.con,
-                JobStatus.RUNNING,
-                created_at_to_ms=stale_before_ms,
-            )
-        )
-
-        stale_job_ids = [job.id for job in stale_jobs]
-        batch_update_job_status(self.con, stale_job_ids, JobStatus.FAILED)
-        self.logger.system(
-            "WARN",
-            "worker_recovered_stale_jobs",
-            "Recovered stale jobs",
-            stale_count=len(stale_job_ids),
-        )
 
     def _run_job(self, job: Job) -> int:
         script_path = os.path.expanduser(job.script_path)
@@ -87,6 +94,7 @@ class ForgeWorker():
             stderr=sp.PIPE,
             text=True,
             bufsize=1,
+            start_new_session=True,
         )
         set_job_pid(self.con, job.id, proc.pid)
         job_logger.worker("INFO", "job_pid", "Job process started", pid=proc.pid)

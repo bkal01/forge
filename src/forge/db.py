@@ -120,6 +120,19 @@ def batch_update_job_status(con, job_ids, status):
     con.commit()
     return cur.rowcount
 
+def requeue_running_jobs(con):
+    cur = con.cursor()
+    cur.execute(
+        """
+        UPDATE jobs
+        SET status = ?, pid = 0
+        WHERE status = ?
+        """,
+        (int(JobStatus.QUEUED), int(JobStatus.RUNNING)),
+    )
+    con.commit()
+    return cur.rowcount
+
 def start_job(con, job_id, started_at_ms):
     cur = con.cursor()
     cur.execute(

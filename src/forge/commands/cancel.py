@@ -25,29 +25,29 @@ def handle_cancel(job_id: str) -> None:
         con.close()
         return
 
-    if job.status == JobStatus.RUNNING:
+    if job.status == JobStatus.RUNNING and job.pid:
         try:
-            os.kill(job.pid, signal.SIGTERM)
+            os.killpg(job.pid, signal.SIGTERM)
         except ProcessLookupError:
             pass
         except PermissionError:
-            print(f"Failed to terminate process {job.pid} for job {job.id}; job left in RUNNING")
+            print(f"Failed to terminate process group {job.pid} for job {job.id}; job left in RUNNING")
             con.close()
             return
 
         deadline = time.time() + 3.0
         while time.time() < deadline:
             try:
-                os.kill(job.pid, 0)
+                os.killpg(job.pid, 0)
             except ProcessLookupError:
                 break
             except PermissionError:
-                print(f"Failed to terminate process {job.pid} for job {job.id}; job left in RUNNING")
+                print(f"Failed to terminate process group {job.pid} for job {job.id}; job left in RUNNING")
                 con.close()
                 return
             time.sleep(0.1)
         else:
-            print(f"Failed to terminate process {job.pid} for job {job.id}; job left in RUNNING")
+            print(f"Failed to terminate process group {job.pid} for job {job.id}; job left in RUNNING")
             con.close()
             return
 
